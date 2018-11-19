@@ -1,4 +1,4 @@
-# chainer-public-pose-proposal-net
+# chainer-pose-proposal-net
 
 - This is an implementation of [Pose Proposal Networks](http://openaccess.thecvf.com/content_ECCV_2018/papers/Sekii_Pose_Proposal_Networks_ECCV_2018_paper.pdf) with Chainer including training and prediction tools.
 
