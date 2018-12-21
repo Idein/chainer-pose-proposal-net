@@ -13,7 +13,9 @@ This project is licensed under the terms of the [license](LICENSE).
 
 - Prior to training, let's download dataset. You can train with MPII or COCO dataset by yourself.
 - For simplicity, we will use docker image of [idein/chainer](https://hub.docker.com/r/idein/chainer/) which includes Chainer, ChainerCV and other utilities with CUDA driver. This will save time setting development environment.
-
+- For more information see:
+  - https://docs.docker.com/install/
+  - https://github.com/NVIDIA/nvidia-docker
 ## Prepare Dataset
 
 ### MPII
@@ -53,7 +55,7 @@ idein/chainer:5.1.0 \
 python3 train.py
 $ sudo bash begin_train.sh
 ```
-
+
 - Optional argument `--runtime=nvidia` maybe require for some environment.
 - It will train a model the base network is MobileNetV2 with MPII dataset located in `path/to/dataset` on host machine.
 - If we would like to train with COCO dataset, edit a part of `config.ini` as follow:
@@ -154,10 +156,25 @@ $ sudo bash run_video.sh ./trained
 
 # Appendix
 
+## Pre-trained Model
+- Without training, you can try our software by downloading pre-trained model from [our release page](https://github.com/Idein/chainer-pose-proposal-net/releases)
+
+## Our Demo
 - [Implementation of Pose Proposal Networks (NotePC with e-GPU)](https://twitter.com/IdeinInc/status/1059385580180500482)
 - [Demo: Pose Proposal Network on a Raspberry Pi](https://www.youtube.com/watch?v=L_kAUnAgkfg)
   - It runs on Raspberry Pi 3 locally using its GPU (VideoCore IV) with almost 10 FPS.
   - [It also runs on Raspberry Pi Zero](https://twitter.com/9_ties/status/1059750417679114240) with 6.6 FPS.
+
+## Actcast 
+ - We have released an IoT platform service named [Actcast](https://actcast.io/). 
+ - You can reproduce our demo and feel how fast it is on **YOUR** Raspberry Pi using Actcast.
+ - It is free of charge alpha release. Please give it a try! For more information see:
+   - [Idein Ideas
+Released Actcast alpha](https://blog.idein.jp/post/181016515935/alphareleaseen)
+ - 日本語ページはこちら
+   - [Idein Ideas
+Actcast α版をリリースしました](https://blog.idein.jp/post/180982005915/alpharelease)
+
 
 # Citation
 Please cite the paper in your publications if it helps your research:
