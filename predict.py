@@ -11,9 +11,6 @@ import os
 import random
 import time
 
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt
 import numpy as np
 
 import chainer
@@ -22,15 +19,12 @@ if chainer.backends.cuda.available:
 else:
     xp = np
 
-import chainercv.transforms as transforms
 from chainercv.utils import non_maximum_suppression
-from chainercv.visualizations import vis_bbox
 from PIL import ImageDraw, Image
 
 from coco_dataset import get_coco_dataset
 from mpii_dataset import get_mpii_dataset
 from model import PoseProposalNet
-from train import create_model
 from network_resnet import ResNet50
 from utils import parse_size
 
