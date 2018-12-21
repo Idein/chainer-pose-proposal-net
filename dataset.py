@@ -1,11 +1,13 @@
 import os
-import numpy as np
+
 from chainer.dataset import DatasetMixin
 from chainercv import utils
 import chainercv.transforms as transforms
 import numpy as np
 
-from augment import rotate
+from augment import random_rotate, random_flip, random_crop
+from augment import scale_fit_short, resize
+from augment import augment_image
 
 
 class KeypointDataset2D(DatasetMixin):
@@ -43,93 +45,60 @@ class KeypointDataset2D(DatasetMixin):
     def __len__(self):
         return len(self.image_paths)
 
-    def transform(self, image, keypoints, bbox, is_labeled):
-        _, H, W = image.shape
-        # PCA Lighting
-        image = transforms.pca_lighting(image, sigma=5)
+    def transform(self, image, keypoints, bbox, is_labeled, is_visible, dataset_type):
+        transform_param = {}
+
+        # Color augmentation
+        image, param = augment_image(image, dataset_type)
+        transform_param['augment_image'] = param
 
         # Random rotate
-        degree = np.random.uniform(-40, 40)
-        image, keypoints, bbox = rotate(image, keypoints, bbox, degree)
+        image, keypoints, bbox, param = random_rotate(image, keypoints, bbox)
+        transform_param['random_rotate'] = param
+
         # Random flip
-        image, param = transforms.random_flip(image, x_random=True, return_param=True)
-        if param['x_flip']:
-            keypoints = [
-                transforms.flip_point(points, (H, W), x_flip=True)[self.flip_indices]
-                for points in keypoints
-            ]
-
-            is_labeled = [label[self.flip_indices] for label in is_labeled]
-
-            new_bbox = []
-            for x, y, w, h in bbox:
-                [[y, x]] = transforms.flip_point(np.array([[y, x + w]]), (H, W), x_flip=True)
-                new_bbox.append([x, y, w, h])
-            bbox = new_bbox
-
-        # Random resize
-        scalew, scaleh = np.random.uniform(1.0, 2.0, 2)
-        resizeW, resizeH = int(W * scalew), int(H * scalew)
-        image, keypoints, bbox = self.resize(image, keypoints, bbox, (resizeH, resizeW))
+        image, keypoints, bbox, is_labeled, is_visible, param = random_flip(image, keypoints, bbox, is_labeled, is_visible, self.flip_indices)
+        transform_param['random_flip'] = param
 
         # Random crop
-        image, param = transforms.random_sized_crop(image,
-                                                    scale_ratio_range=(0.5, 5), return_param=True)
-        keypoints = [
-            transforms.translate_point(points,
-                                       x_offset=-param['x_slice'].start,
-                                       y_offset=-param['y_slice'].start
-                                       )
-            for points in keypoints
-        ]
-        new_bbox = []
-        for x, y, w, h in bbox:
-            new_bbox.append([x - param['x_slice'].start, y - param['y_slice'].start, w, h])
-        bbox = new_bbox
+        image, keypoints, bbox, param = random_crop(image, keypoints, bbox, is_labeled, dataset_type)
+        transform_param['random_crop'] = param
 
-        return image, keypoints, bbox, is_labeled
-
-    def resize(self, image, keypoints, bbox, size):
-        _, h, w = image.shape
-        new_h, new_w = size
-
-        image = transforms.resize(image, (new_h, new_w))
-        keypoints = [
-            transforms.resize_point(points, (h, w), (new_h, new_w))
-            for points in keypoints
-        ]
-        new_bbox = []
-        for x, y, bw, bh in bbox:
-            [[y, x]] = transforms.resize_point(np.array([[y, x]]), (h, w), (new_h, new_w))
-            bw *= new_w / w
-            bh *= new_h / h
-            new_bbox.append([x, y, bw, bh])
-        return image, keypoints, new_bbox
+        return image, keypoints, bbox, is_labeled, is_visible, transform_param
 
     def get_example(self, i):
         w, h = self.insize
 
         if self.use_cache and self.cached_samples[i] is not None:
-            image, keypoints, bbox, is_labeled = self.cached_samples[i]
+            image, keypoints, bbox, is_labeled, is_visible = self.cached_samples[i]
         else:
             path = os.path.join(self.image_root, self.image_paths[i])
             image = utils.read_image(path, dtype=np.float32, color=True)
             keypoints = self.keypoints[i]
             bbox = self.bbox[i]
             is_labeled = self.is_labeled[i]
+            is_visible = self.is_visible[i]
 
-            image, keypoints, bbox = self.resize(image, keypoints, bbox, (h, w))
             if self.use_cache:
-                self.cached_samples[i] = image, keypoints, bbox, is_labeled
+                image, keypoints, bbox = resize(image, keypoints, bbox, (h, w))
+                self.cached_samples[i] = image, keypoints, bbox, is_labeled, is_visible
 
         image = image.copy()
         keypoints = keypoints.copy()
         bbox = bbox.copy()
         is_labeled = is_labeled.copy()
+        is_visible = is_visible.copy()
 
-        if self.do_augmentation:
-            image, keypoints, bbox, is_labeled = self.transform(image, keypoints, bbox, is_labeled)
-            image, keypoints, bbox = self.resize(image, keypoints, bbox, (h, w))
+        transform_param = {}
+        try:
+            if self.do_augmentation:
+                image, keypoints, bbox = scale_fit_short(image, keypoints, bbox, length=int(min(h, w) * 1.25))
+                image, keypoints, bbox, is_labeled, is_visible, transform_param = self.transform(
+                    image, keypoints, bbox, is_labeled, is_visible, self.dataset_type)
+            transform_param['do_augmentation'] = self.do_augmentation
+            image, keypoints, bbox = resize(image, keypoints, bbox, (h, w))
+        except Exception as e:
+            raise Exception("something wrong...transform_param = {}".format(transform_param))
 
         return {
             'path': self.image_paths[i],
@@ -139,5 +108,7 @@ class KeypointDataset2D(DatasetMixin):
             'keypoints': keypoints,
             'bbox': bbox,
             'is_labeled': is_labeled,
+            'is_visible': is_visible,
             'dataset_type': self.dataset_type,
+            'transform_param': transform_param
         }
