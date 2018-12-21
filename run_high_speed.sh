@@ -15,5 +15,5 @@ docker run --rm \
 --device=/dev/video0:/dev/video0 \
 --runtime=nvidia \
 -w /work \
-ppn:latest python3 video.py /models/$1
+ppn:latest python3 high_speed.py /models/$1
 xhost -local:docker

@@ -1,3 +1,4 @@
+import argparse
 import configparser
 import logging
 logger = logging.getLogger(__name__)
@@ -13,15 +14,13 @@ import numpy as np
 from PIL import ImageDraw, Image
 
 from predict import COLOR_MAP
-from predict import estimate, draw_humans, create_model
+from predict import estimate, draw_humans, create_model, load_config
 from utils import parse_size
 
 
-def main():
-    config = configparser.ConfigParser()
-    config.read('config.ini', 'UTF-8')
-
-    model = create_model(config)
+def video(args):
+    config = load_config(args)
+    model = create_model(args, config)
 
     cap = cv2.VideoCapture(0)
     if cap.isOpened() is False:
@@ -37,6 +36,8 @@ def main():
 
     fps_time = 0
     degree = 0
+    detection_thresh = config.getfloat('predict', 'detection_thresh')
+    min_num_keypoints = config.getint('predict', 'min_num_keypoints')
     while cap.isOpened():
         degree += 5
         degree = degree % 360
@@ -45,14 +46,17 @@ def main():
         image = cv2.resize(image, model.insize)
         with chainer.using_config('autotune', True):
             humans = estimate(model,
-                              image.transpose(2, 0, 1).astype(np.float32))
+                              image.transpose(2, 0, 1).astype(np.float32),
+                              detection_thresh,
+                              min_num_keypoints)
         pilImg = Image.fromarray(image)
         pilImg = draw_humans(
             model.keypoint_names,
             model.edges,
             pilImg,
             humans,
-            mask=mask.rotate(degree) if mask else None
+            mask=mask.rotate(degree) if mask else None,
+            visbbox=config.getboolean('predict', 'visbbox'),
         )
         img_with_humans = cv2.cvtColor(np.asarray(pilImg), cv2.COLOR_RGB2BGR)
         msg = 'GPU ON' if chainer.backends.cuda.available else 'GPU OFF'
@@ -65,6 +69,17 @@ def main():
         # press Esc to exit
         if cv2.waitKey(1) == 27:
             break
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('model', help='path/to/model', type=str)
+    return parser.parse_args()
+
+
+def main():
+    args = parse_arguments()
+    video(args)
 
 if __name__ == '__main__':
     main()

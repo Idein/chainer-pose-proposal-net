@@ -6,14 +6,10 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
-xhost +local:docker
 docker run --rm \
--e DISPLAY=$DISPLAY \
--v /tmp/.X11-unix/:/tmp/.X11-unix \
 -v $(pwd):/work \
 -v $BASEMODELDIR:/models \
---device=/dev/video0:/dev/video0 \
---runtime=nvidia \
+-v ~/work/dataset/mpii_dataset:/mpii_dataset \
+-v ~/work/dataset/coco_dataset:/coco_dataset \
 -w /work \
-ppn:latest python3 video.py /models/$1
-xhost -local:docker
+idein/chainer:5.1.0 python3 predict.py /models/$1
