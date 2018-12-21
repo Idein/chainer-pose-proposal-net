@@ -226,12 +226,13 @@ class PoseProposalNet(chainer.link.Chain):
 
     def forward(self, x):
         """
-        this provide interface of forwarding
-        chainer 5.0.0 gives us static_graph to increase of speed of training
-        but for some reason this does train i.e. loss does not decrease at all.
-        We do not trust it for now on training. On the other hand. the speed of
-        inference increases very well.Also note that if we use ideep option,
-        the output result between `static_forward` and `_forward` will be different.
+        This provides an interface of forwarding.
+        ChainerV5 has a feature Static Subgraph Optimizations to increase training speed.
+        But for some reason, our model does not decrease loss value at all.
+        We do not trust it for now on training. On the other hand, by decorating `static_graph`
+        at forward function, it increases speed of inference very well.
+        Also note that if we use ideep option, the output result between 
+        `static_forward` and `_forward` will be different.
         """
         if chainer.config.train:
             return self._forward(x)

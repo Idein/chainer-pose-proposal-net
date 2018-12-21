@@ -26,7 +26,7 @@ rm -rf /tmp/*.tar.gz && \
 apt-get clean && rm -rf /tmp/* /var/tmp* /var/lib/apt/lists/* && \
 rm -f /etc/ssh/ssh_host_* && rm -rf /usr/share/man?? /usr/share/man/??_*
 # install python dependencies
-RUN pip3 install pillow matplotlib scipy
-RUN pip3 install chainer==5.0.0 cupy-cuda90==5.0.0 chainercv==0.11.0 ideep4py
+RUN pip3 install pillow matplotlib scipy tqdm
+RUN pip3 install chainer==5.1.0 cupy-cuda90==5.1.0 chainercv==0.11.0 ideep4py
 # Use Agg backend for matplotlib
 ENV DISPLAY 0

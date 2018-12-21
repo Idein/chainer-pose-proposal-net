@@ -1,6 +1,6 @@
 # chainer-pose-proposal-net
 
-- This is an implementation of [Pose Proposal Networks](http://openaccess.thecvf.com/content_ECCV_2018/papers/Sekii_Pose_Proposal_Networks_ECCV_2018_paper.pdf) with Chainer including training and prediction tools.
+- This is an (unofficial) implementation of [Pose Proposal Networks](http://openaccess.thecvf.com/content_ECCV_2018/papers/Sekii_Pose_Proposal_Networks_ECCV_2018_paper.pdf) with Chainer including training and prediction tools.
 
 # License
 
@@ -19,31 +19,43 @@ This project is licensed under the terms of the [license](LICENSE).
 ### MPII
 
 - If you train with COCO dataset you can skip.
-- Access [MPII Human Pose Dataset](http://human-pose.mpi-inf.mpg.de/) and jump to `Download` page. Then download and extract both `Images (12.9 GB)` and `Annotations (12.5 MB)`.
+- Access [MPII Human Pose Dataset](http://human-pose.mpi-inf.mpg.de/) and jump to `Download` page. Then download and extract both `Images (12.9 GB)` and `Annotations (12.5 MB)` at `~/work/dataset/mpii_dataset` for example.
 
 #### Create `mpii.json`
 
 We need decode `mpii_human_pose_v1_u12_1.mat` to generate `mpii.json`. This will be used on training or evaluating test dataset of MPII.
 
 ```
-$ sudo docker run --rm -v $(pwd):/work -v path/to/dataset:/data -w /work idein/chainer:4.5.0 python3 convert_mpii_dataset.py /data/mpii_human_pose_v1_u12_2/mpii_human_pose_v1_u12_1.mat /data/mpii.json
+$ sudo docker run --rm -v $(pwd):/work -v path/to/dataset:mpii_dataset -w /work idein/chainer:4.5.0 python3 convert_mpii_dataset.py mpii_dataset/mpii_human_pose_v1_u12_2/mpii_human_pose_v1_u12_1.mat mpii_dataset/mpii.json
 ```
 
-It will generate `mpii.json` at `path/to/dataset` where is the root directory of MPII dataset. For those who hesitate to use Docker, you may edit `config.ini` as necessary.
+It will generate `mpii.json` at `path/to/dataset`. Where `path/to/dataset` is the root directory of MPII dataset, for example, `~/work/dataset/mpii_dataset`. For those who hesitate to use Docker, you may edit `config.ini` as necessary.
 
 ### COCO
 
 - If you train with MPII dataset you can skip.
-- Access [COCO dataset](http://cocodataset.org/) and jump to `Dataset` -> `download`. Then download and extract `2017 Train images [118K/18GB]`, `2017 Val images [5K/1GB]` and `2017 Train/Val annotations [241MB]`.
+- Access [COCO dataset](http://cocodataset.org/) and jump to `Dataset` -> `download`. Then download and extract `2017 Train images [118K/18GB]`, `2017 Val images [5K/1GB]` and `2017 Train/Val annotations [241MB]` at `~/work/dataset/coco_dataset:/coco_dataset` for example.
 
 ## Running Training Scripts
 
-```
-$ sudo docker run --rm -v $(pwd):/work -v path/to/dataset:/data -w /work idein/chainer:4.5.0 python3 train.py
-```
+OK let's begin!
 
+```
+$ cat begin_train.sh
+cat config.ini
+docker run --rm \
+-v $(pwd):/work \
+-v ~/work/dataset/mpii_dataset:/mpii_dataset \
+-v ~/work/dataset/coco_dataset:/coco_dataset \
+--name ppn_idein \
+-w /work \
+idein/chainer:5.1.0 \
+python3 train.py
+$ sudo bash begin_train.sh
+```
+
 - Optional argument `--runtime=nvidia` maybe require for some environment.
-- This will train a model the base network is MobileNetV2 with MPII dataset located in `path/to/dataset` on host machine.
+- It will train a model the base network is MobileNetV2 with MPII dataset located in `path/to/dataset` on host machine.
 - If we would like to train with COCO dataset, edit a part of `config.ini` as follow:
 
 before
@@ -81,10 +93,22 @@ model_name = resnet18
 
 # Prediction
 
-- Very easy, all we have to do is:
+- Very easy, all we have to do is, for example:
 
 ```
-$ sudo docker run --rm -v $(pwd):/work -v path/to/dataset:/data -w /work idein/chainer:4.5.0 python3 predict.py
+$ sudo bash run_predict.sh ./trained
+```
+
+- If you would like to configure parameter or hide bounding box, edit a part of `config.ini` as follow:
+
+```
+[predict]
+# If `False` is set, hide bbox of annotation other than human instance.
+visbbox = True
+# detection_thresh
+detection_thresh = 0.15
+# ignore human its num of keypoints is less than min_num_keypoints
+min_num_keypoints= 1
 ```
 
 # Demo: Realtime Pose Estimation
@@ -102,6 +126,10 @@ docker build -t ppn .
 $ sudo bash build.sh
 ```
 
+Here is an result of ResNet18 trained with COCO running on laptop PC.
+
+![](readmedata/cpu-example.gif)
+
 ## Run video.py
 
 - Set your USB camera that can recognize from OpenCV.
@@ -109,17 +137,17 @@ $ sudo bash build.sh
 - Run `video.py`
 
 ```
-$ python video.py
+$ python video.py ./trained
 ```
 
 or
 
 ```
-$ sudo bash run_video.sh
+$ sudo bash run_video.sh ./trained
 ```
 
 ## High Performance Version
-- To use feature of [Static Subgraph Optimizations](http://docs.chainer.org/en/stable/reference/static_graph_design.html) to accelerate inference speed, we should install Chainer 5.0.0 and CuPy 5.0.0 .
+- To use feature of [Static Subgraph Optimizations](http://docs.chainer.org/en/stable/reference/static_graph_design.html) to accelerate inference speed, we should install Chainer 5.y.z and CuPy 5.y.z e.g. 5.0.0 or 5.1.0 .
 - Prepare high performance USB camera so that takes more than 60 FPS.
 - Run `high_speed.py` instead of `video.py`
 - Do not fall from the chair with surprise :D.

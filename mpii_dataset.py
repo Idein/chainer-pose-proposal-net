@@ -122,7 +122,8 @@ def get_mpii_dataset(insize, image_root, annotations,
         entry[0].append(np.array(keypoints))  # array of y,x
         entry[1].append(np.array([x1, y1, x2 - x1, y2 - y1]))  # x, y, w, h
         entry[2].append(np.array(is_visible, dtype=np.bool))
-        entry[3].append(np.ones(len(is_visible), dtype=np.bool))
+        is_labeled = np.ones(len(is_visible), dtype=np.bool)
+        entry[3].append(is_labeled)
 
     # split dataset
     train_images, test_images = split_dataset_random(

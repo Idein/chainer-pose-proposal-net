@@ -11,9 +11,6 @@ import os
 import random
 import time
 
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt
 import numpy as np
 
 import chainer
@@ -22,15 +19,12 @@ if chainer.backends.cuda.available:
 else:
     xp = np
 
-import chainercv.transforms as transforms
 from chainercv.utils import non_maximum_suppression
-from chainercv.visualizations import vis_bbox
 from PIL import ImageDraw, Image
 
 from coco_dataset import get_coco_dataset
 from mpii_dataset import get_mpii_dataset
 from model import PoseProposalNet
-from train import create_model
 from network_resnet import ResNet50
 from utils import parse_size
 
@@ -63,12 +57,12 @@ def get_feature(model, image):
     return resp, conf, x, y, w, h, e
 
 
-def estimate(model, image):
+def estimate(model, image, detection_thresh=0.15, min_num_keypoints=-1):
     feature_map = get_feature(model, image)
-    return get_humans_by_feature(model, feature_map)
+    return get_humans_by_feature(model, feature_map, detection_thresh, min_num_keypoints)
 
 
-def get_humans_by_feature(model, feature_map, detection_thresh=0.15):
+def get_humans_by_feature(model, feature_map, detection_thresh=0.15, min_num_keypoints=-1):
     resp, conf, x, y, w, h, e = feature_map
     start = time.time()
     delta = resp * conf
@@ -113,14 +107,14 @@ def get_humans_by_feature(model, feature_map, detection_thresh=0.15):
                     break
                 human[t] = bbox[(t, j_h, j_w)]
                 i_h, i_w = j_h, j_w
-
-        humans.append(human)
+        if min_num_keypoints <= len(human) - 1:
+            humans.append(human)
     logger.info('alchemy time {:.5f}'.format(time.time() - start))
     logger.info('num humans = {}'.format(len(humans)))
     return humans
 
 
-def draw_humans(keypoint_names, edges, pil_image, humans, mask=None):
+def draw_humans(keypoint_names, edges, pil_image, humans, mask=None, visbbox=True):
     """
     This is what happens when you use alchemy on humans...
     note that image should be PIL object
@@ -134,7 +128,7 @@ def draw_humans(keypoint_names, edges, pil_image, humans, mask=None):
             else:
                 fill = None
             ymin, xmin, ymax, xmax = b
-            if k == 0:
+            if k == 0:  # human instance
                 # adjust size
                 t = 1
                 xmin = int(xmin * t + xmax * (1 - t))
@@ -149,9 +143,17 @@ def draw_humans(keypoint_names, edges, pil_image, humans, mask=None):
                                      fill=fill,
                                      outline=COLOR_MAP[keypoint_names[k]])
             else:
-                drawer.rectangle(xy=[xmin, ymin, xmax, ymax],
-                                 fill=fill,
-                                 outline=COLOR_MAP[keypoint_names[k]])
+                if visbbox:
+                    drawer.rectangle(xy=[xmin, ymin, xmax, ymax],
+                                     fill=fill,
+                                     outline=COLOR_MAP[keypoint_names[k]])
+                else:
+                    r = 2
+                    x = (xmin + xmax) / 2
+                    y = (ymin + ymax) / 2
+                    drawer.ellipse((x - r, y - r, x + r, y + r),
+                                   fill=COLOR_MAP[keypoint_names[k]])
+
         for s, t in edges:
             if s in human and t in human:
                 by = (human[s][0] + human[s][2]) / 2
@@ -166,7 +168,7 @@ def draw_humans(keypoint_names, edges, pil_image, humans, mask=None):
     return pil_image
 
 
-def create_model(config):
+def create_model(args, config):
     global DIRECTED_GRAPHS, COLOR_MAP
 
     dataset_type = config.get('dataset', 'type')
@@ -194,7 +196,7 @@ def create_model(config):
         width_multiplier=config.getfloat('model_param', 'width_multiplier'),
     )
 
-    result_dir = config.get('result', 'dir')
+    result_dir = args.model
     chainer.serializers.load_npz(
         os.path.join(result_dir, 'bestmodel.npz'),
         model
@@ -211,9 +213,18 @@ def create_model(config):
     return model
 
 
-def main():
+def load_config(args):
     config = configparser.ConfigParser()
-    config.read('config.ini', 'UTF-8')
+    config_path = os.path.join(args.model, 'src', 'config.ini')
+    logger.info(config_path)
+    config.read(config_path, 'UTF-8')
+    return config
+
+
+def predict(args):
+    config = load_config(args)
+    detection_thresh = config.getfloat('predict', 'detection_thresh')
+    min_num_keypoints = config.getint('predict', 'min_num_keypoints')
     dataset_type = config.get('dataset', 'type')
     logger.info('loading {}'.format(dataset_type))
     if dataset_type == 'mpii':
@@ -235,22 +246,37 @@ def main():
     else:
         raise Exception('Unknown dataset {}'.format(dataset_type))
 
-    model = create_model(config)
+    model = create_model(args, config)
 
     idx = random.choice(range(len(test_set)))
     image = test_set.get_example(idx)['image']
-    humans = estimate(model,
-                      image.astype(np.float32))
+    humans = estimate(
+        model,
+        image.astype(np.float32),
+        detection_thresh,
+        min_num_keypoints,
+    )
     pil_image = Image.fromarray(image.transpose(1, 2, 0).astype(np.uint8))
     pil_image = draw_humans(
         keypoint_names=model.keypoint_names,
         edges=model.edges,
         pil_image=pil_image,
-        humans=humans
+        humans=humans,
+        visbbox=config.getboolean('predict', 'visbbox')
     )
 
     pil_image.save('result.png', 'PNG')
 
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('model', help='path/to/model', type=str)
+    return parser.parse_args()
+
+
+def main():
+    args = parse_arguments()
+    predict(args)
 
 if __name__ == '__main__':
     main()

@@ -2,8 +2,9 @@ import argparse
 import random
 import configparser
 
-from logging import getLogger
-logger = getLogger('__main__')
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 import matplotlib
 matplotlib.use('Agg')
@@ -15,12 +16,11 @@ from chainer import serializers
 from chainer.training import extensions
 import numpy as np
 
-import visualize
 from model import PoseProposalNet
-
 from coco_dataset import get_coco_dataset
 from mpii_dataset import get_mpii_dataset
 from utils import parse_size, parse_kwargs, save_files
+import visualize
 
 
 def setup_devices(ids):
@@ -73,7 +73,9 @@ def main():
     config.read(args.config_path, 'UTF-8')
 
     chainer.global_config.autotune = True
-    chainer.cuda.set_max_workspace_size(11388608)
+    # chainer.cuda.set_max_workspace_size(11388608)
+    chainer.cuda.set_max_workspace_size(512 * 1024 * 1024)
+    chainer.config.cudnn_fast_batch_normalization = True
 
     # create result dir and copy file
     logger.info('> store file to result dir %s', config.get('result', 'dir'))
@@ -139,9 +141,10 @@ def main():
         train_set, config.getint('training_param', 'batchsize'),
         n_processes=config.getint('training_param', 'num_process')
     )
-    test_iter = chainer.iterators.SerialIterator(
+    test_iter = chainer.iterators.MultiprocessIterator(
         test_set, config.getint('training_param', 'batchsize'),
-        repeat=False, shuffle=False
+        repeat=False, shuffle=False,
+        n_processes=config.getint('training_param', 'num_process')
     )
 
     logger.info('> setup optimizer')
@@ -193,6 +196,7 @@ def main():
 
     logger.info('> start training')
     trainer.run()
+
 
 if __name__ == '__main__':
     import logging

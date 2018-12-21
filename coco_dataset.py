@@ -157,10 +157,10 @@ def get_coco_dataset(insize, image_root, annotations,
         is_labeled = d[:, 2] >= 1
 
         entry = images[image_id]
-        entry[1].append(keypoints)
-        entry[2].append(bbox)
-        entry[3].append(is_visible)
-        entry[4].append(is_labeled)
+        entry[1].append(np.asarray(keypoints))
+        entry[2].append(np.asarray(bbox))
+        entry[3].append(np.asarray(is_visible).astype(np.bool))
+        entry[4].append(np.asarray(is_labeled).astype(np.bool))
 
     # filter-out non annotated images
     image_paths = []

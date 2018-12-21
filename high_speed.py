@@ -1,3 +1,4 @@
+import argparse
 import configparser
 import os
 import queue
@@ -12,7 +13,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from predict import get_feature, get_humans_by_feature, draw_humans, create_model
+from predict import get_feature, get_humans_by_feature, draw_humans, create_model, load_config
 from utils import parse_size
 
 QUEUE_SIZE = 5
@@ -83,11 +84,12 @@ class Predictor(threading.Thread):
         self.stop_event.set()
 
 
-def main():
-    config = configparser.ConfigParser()
-    config.read('config.ini', 'UTF-8')
-
-    model = create_model(config)
+def high_speed(args):
+    config = load_config(args)
+    dataset_type = config.get('dataset', 'type')
+    detection_thresh = config.getfloat('predict', 'detection_thresh')
+    min_num_keypoints = config.getint('predict', 'min_num_keypoints')
+    model = create_model(args, config)
 
     if os.path.exists('mask.png'):
         mask = Image.open('mask.png')
@@ -123,7 +125,12 @@ def main():
             degree = degree % 360
             try:
                 image, feature_map = predictor.get()
-                humans = get_humans_by_feature(model, feature_map)
+                humans = get_humans_by_feature(
+                    model,
+                    feature_map,
+                    detection_thresh,
+                    min_num_keypoints
+                )
             except queue.Empty:
                 continue
             except Exception:
@@ -134,7 +141,8 @@ def main():
                 model.edges,
                 pilImg,
                 humans,
-                mask=mask.rotate(degree) if mask else None
+                mask=mask.rotate(degree) if mask else None,
+                visbbox=config.getboolean('predict', 'visbbox'),
             )
             img_with_humans = cv2.cvtColor(np.asarray(pilImg), cv2.COLOR_RGB2BGR)
             msg = 'GPU ON' if chainer.backends.cuda.available else 'GPU OFF'
@@ -157,6 +165,17 @@ def main():
 
     capture.join()
     predictor.join()
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('model', help='path/to/model', type=str)
+    return parser.parse_args()
+
+
+def main():
+    args = parse_arguments()
+    high_speed(args)
 
 if __name__ == '__main__':
     main()
